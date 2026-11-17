@@ -147,6 +147,7 @@
       <div class="f"><label>button</label><select id="m_button">
         <option>left</option><option>right</option><option>middle</option></select></div>
       <div class="f"><label>double-click chance</label><input id="m_dbl" class="sm" type="number" step="0.01" min="0" max="1"></div>
+      <div class="f"><label>click chance 0–1</label><input id="m_click" class="sm" type="number" step="0.05" min="0" max="1" title="fraction of moves that end in a click; <1 = some moves just wander (human-like)"></div>
     </div>
     <div class="row">
       <div class="f"><label>clicks/session min</label><input id="m_cmin" class="sm" type="number"></div>
@@ -374,6 +375,7 @@ function buildProfile(){
       enabled: el('m_enabled').checked,
       button: el('m_button').value,
       double_click_chance: +el('m_dbl').value,
+      click_chance: +el('m_click').value,
       clicks_per_session:{min:+el('m_cmin').value,max:+el('m_cmax').value},
       targets,
       move:{steps:{min:+el('mv_smin').value,max:+el('mv_smax').value},
@@ -409,6 +411,7 @@ async function loadProfileInto(p){
   const m=p.mouse||{};
   el('m_enabled').checked=m.enabled!==false; el('m_button').value=m.button||'left';
   el('m_dbl').value=m.double_click_chance||0;
+  el('m_click').value=(m.click_chance!==undefined?m.click_chance:1);
   el('m_cmin').value=(m.clicks_per_session||{}).min||20; el('m_cmax').value=(m.clicks_per_session||{}).max||60;
   const mv=m.move||{};
   el('mv_smin').value=(mv.steps||{}).min||18; el('mv_smax').value=(mv.steps||{}).max||55;

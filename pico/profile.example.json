@@ -1,38 +1,65 @@
 {
-  "_comment": "Automation profile for the Pico HID rig. Lives at /profile.json on the device. The Pico loads it on boot and runs it autonomously. All coordinates are RAW HID units (0..32767); the Mac-side UI converts a display's macOS-point rectangle into these using the saved calibration. Edit via the UI, or copy this file to the CIRCUITPY drive while the jumper is OFF.",
+  "_comment": "Automation profile for the Pico HID rig. Lives at /profile.json on the device. The Pico loads it on boot and runs it autonomously. All coordinates are RAW HID units (0..32767); the Mac-side UI converts a display's macOS-point rectangle into these using the saved calibration. Edit via the UI, or copy this file to the CIRCUITPY drive while the jumper is OFF. | click_chance<1 = some moves don't click (human-like); action_gap_ms is the random pause between actions.",
   "name": "default",
   "autorun": false,
   "keyboard_enabled": false,
-
-  "zone": { "x0": 0, "y0": 0, "x1": 32767, "y1": 32767 },
-
+  "zone": {
+    "x0": 0,
+    "y0": 0,
+    "x1": 32767,
+    "y1": 32767
+  },
   "mouse": {
     "enabled": true,
     "button": "left",
     "double_click_chance": 0.08,
-    "clicks_per_session": { "min": 20, "max": 60 },
+    "clicks_per_session": {
+      "min": 20,
+      "max": 60
+    },
     "targets": [],
     "move": {
-      "steps": { "min": 18, "max": 55 },
-      "duration_ms": { "min": 300, "max": 1300 },
+      "steps": {
+        "min": 18,
+        "max": 55
+      },
+      "duration_ms": {
+        "min": 300,
+        "max": 1300
+      },
       "jitter": 40,
       "curve": 0.18
     },
-    "dwell_ms": { "min": 40, "max": 220 },
-    "hold_ms": { "min": 40, "max": 110 }
+    "dwell_ms": {
+      "min": 40,
+      "max": 220
+    },
+    "hold_ms": {
+      "min": 40,
+      "max": 110
+    },
+    "click_chance": 0.6
   },
-
   "keyboard": {
     "enabled": false,
     "chance": 0.2,
-    "phrases": ["hello", "test input", "the quick brown fox"],
-    "type_delay_ms": { "min": 40, "max": 170 }
+    "phrases": [
+      "hello",
+      "test input",
+      "the quick brown fox"
+    ],
+    "type_delay_ms": {
+      "min": 40,
+      "max": 170
+    }
   },
-
   "session": {
     "loop": true,
     "max_actions": 0,
     "start_delay_ms": 4000,
-    "action_gap_ms": { "min": 500, "max": 3500 }
+    "action_gap_ms": {
+      "min": 1500,
+      "max": 40000
+    }
   }
 }

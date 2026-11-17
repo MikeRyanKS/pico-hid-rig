@@ -245,9 +245,8 @@ def human_move(prof, tx, ty):
         time.sleep(dur / steps)
 
 
-def do_click(prof):
-    tx, ty = pick_target(prof)
-    human_move(prof, tx, ty)
+def _click_here(prof):
+    """Press/release at the current pointer position."""
     time.sleep(_rng(prof["mouse"]["dwell_ms"], 40, 120) / 1000.0)
     mask = button_mask(prof["mouse"].get("button", "left"))
     count = 2 if random() < prof["mouse"].get("double_click_chance", 0) else 1
@@ -259,6 +258,15 @@ def do_click(prof):
         abs_report()
         if i < count - 1:
             time.sleep(uniform(0.05, 0.12))
+
+
+def do_mouse(prof):
+    """Move to a random in-zone target, then click only some of the time, so the
+    pointer also just wanders like a human. click_chance 1.0 = always click (default)."""
+    tx, ty = pick_target(prof)
+    human_move(prof, tx, ty)
+    if random() < prof["mouse"].get("click_chance", 1.0):
+        _click_here(prof)
 
 
 def do_type(prof):
@@ -277,7 +285,7 @@ def automation_step(prof):
     if kb and random() < prof["keyboard"].get("chance", 0):
         do_type(prof)
     elif prof["mouse"].get("enabled", True):
-        do_click(prof)
+        do_mouse(prof)
 
 
 def start_session(prof):
