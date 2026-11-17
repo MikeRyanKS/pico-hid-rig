@@ -1,0 +1,9 @@
+# Secrets — keep local, never commit (use the .example templates)
+pico/settings.toml
+macmini/pico_config.json
+
+# Cruft
+__pycache__/
+*.pyc
+.DS_Store
+*.bak

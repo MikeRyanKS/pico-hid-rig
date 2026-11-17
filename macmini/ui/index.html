@@ -1,0 +1,459 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pico HID Rig</title>
+<style>
+  :root{
+    --bg:#0f1420; --panel:#171e2e; --panel2:#1e2740; --edge:#2b3754;
+    --ink:#e7ecf5; --dim:#9aa7c2; --accent:#4f8cff; --good:#36c08a;
+    --warn:#e9b949; --bad:#ef5f6b; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--ink);
+    font:14px/1.5 -apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif}
+  header{position:sticky;top:0;z-index:5;background:var(--panel);
+    border-bottom:1px solid var(--edge);padding:10px 16px;display:flex;
+    gap:14px;align-items:center;flex-wrap:wrap}
+  header h1{font-size:15px;margin:0;font-weight:650;letter-spacing:.2px}
+  .pill{display:inline-flex;align-items:center;gap:6px;padding:3px 10px;
+    border-radius:999px;background:var(--panel2);border:1px solid var(--edge);
+    font-size:12px;color:var(--dim)}
+  .dot{width:8px;height:8px;border-radius:50%;background:var(--dim)}
+  .dot.run{background:var(--good);box-shadow:0 0 8px var(--good)}
+  .dot.idle{background:var(--warn)}
+  .dot.off{background:var(--bad)}
+  .grow{flex:1}
+  main{max-width:1000px;margin:0 auto;padding:16px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}
+  .tab{padding:7px 14px;border-radius:var(--radius);background:var(--panel);
+    border:1px solid var(--edge);color:var(--dim);cursor:pointer;font-weight:550}
+  .tab.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  .panel{background:var(--panel);border:1px solid var(--edge);
+    border-radius:var(--radius);padding:16px;margin-bottom:14px;display:none}
+  .panel.active{display:block}
+  .panel h2{margin:0 0 4px;font-size:15px}
+  .panel .hint{color:var(--dim);font-size:12.5px;margin:0 0 14px}
+  .row{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px}
+  .f{display:flex;flex-direction:column;gap:4px}
+  .f label{font-size:12px;color:var(--dim)}
+  input,select,textarea{background:var(--bg);border:1px solid var(--edge);
+    color:var(--ink);border-radius:8px;padding:7px 9px;font:inherit;outline:none}
+  input:focus,select:focus,textarea:focus{border-color:var(--accent)}
+  input[type=number]{width:92px}
+  input.sm{width:70px}
+  textarea{width:100%;min-height:80px;resize:vertical}
+  button{background:var(--panel2);border:1px solid var(--edge);color:var(--ink);
+    padding:7px 13px;border-radius:8px;cursor:pointer;font:inherit;font-weight:550}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.good{background:var(--good);border-color:var(--good);color:#06281c}
+  button.bad{background:transparent;border-color:var(--bad);color:var(--bad)}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  .chk{flex-direction:row;align-items:center;gap:8px}
+  .chk input{width:auto}
+  table{width:100%;border-collapse:collapse;margin-bottom:10px}
+  th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--edge);font-size:13px}
+  th{color:var(--dim);font-weight:600}
+  .z-active{color:var(--good);font-weight:700}
+  .sep{height:1px;background:var(--edge);margin:14px 0}
+  .mini{font-size:12px;color:var(--dim)}
+  #log{background:#0a0e17;border:1px solid var(--edge);border-radius:var(--radius);
+    padding:10px 12px;font:12px/1.5 ui-monospace,Menlo,monospace;color:var(--dim);
+    max-height:180px;overflow:auto;white-space:pre-wrap}
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+  .danger{color:var(--bad)}
+  .tag{font-size:11px;padding:1px 7px;border-radius:6px;background:var(--panel2);
+    border:1px solid var(--edge);color:var(--dim)}
+</style>
+</head>
+<body>
+<header>
+  <h1>Pico HID Rig</h1>
+  <span class="pill"><span id="dot" class="dot"></span><span id="state">connecting…</span></span>
+  <span class="pill">IP <b id="ip">—</b></span>
+  <span class="pill">actions <b id="actions">0</b>/<b id="target">0</b></span>
+  <span class="pill">profile <b id="profname">—</b></span>
+  <span class="pill">keyboard <b id="kbstate">—</b></span>
+  <span class="grow"></span>
+  <button id="btnRefresh">Refresh</button>
+  <button id="btnStart" class="good">Start</button>
+  <button id="btnStop" class="bad">Stop</button>
+</header>
+
+<main>
+  <div class="tabs" id="tabs">
+    <div class="tab active" data-tab="cal">Calibration</div>
+    <div class="tab" data-tab="zones">Zones</div>
+    <div class="tab" data-tab="pattern">Pattern</div>
+    <div class="tab" data-tab="typing">Typing</div>
+    <div class="tab" data-tab="session">Session</div>
+    <div class="tab" data-tab="profile">Profile</div>
+  </div>
+
+  <!-- CALIBRATION -->
+  <section class="panel active" data-panel="cal">
+    <h2>Screen calibration</h2>
+    <p class="hint">Maps the Pico's absolute range (0–32767) to macOS points. Drive the
+      cursor to each extreme, read its coordinate on the target with ⌘⇧4, type the two
+      numbers in, then Compute &amp; Save. Everything else (zones, clicks) uses this.</p>
+    <div class="row">
+      <div class="f"><label>offset X</label><input id="cal_ox" type="number"></div>
+      <div class="f"><label>offset Y</label><input id="cal_oy" type="number"></div>
+      <div class="f"><label>width (pts)</label><input id="cal_w" type="number"></div>
+      <div class="f"><label>height (pts)</label><input id="cal_h" type="number"></div>
+      <button id="btnSaveCal" class="primary">Save calibration</button>
+    </div>
+    <div class="sep"></div>
+    <p class="hint">Helper — drive the cursor to the raw corners and record what ⌘⇧4 shows:</p>
+    <div class="row">
+      <button id="btnRawTL">Drive to raw (0,0)</button>
+      <div class="f"><label>…reads point X</label><input id="tl_x" class="sm" type="number"></div>
+      <div class="f"><label>point Y</label><input id="tl_y" class="sm" type="number"></div>
+    </div>
+    <div class="row">
+      <button id="btnRawBR">Drive to raw (max,max)</button>
+      <div class="f"><label>…reads point X</label><input id="br_x" class="sm" type="number"></div>
+      <div class="f"><label>point Y</label><input id="br_y" class="sm" type="number"></div>
+      <button id="btnCompute">Compute mapping</button>
+    </div>
+  </section>
+
+  <!-- ZONES -->
+  <section class="panel" data-panel="zones">
+    <h2>Zones <span class="tag">clamps all clicks</span></h2>
+    <p class="hint">A zone is the rectangle (in macOS points) the automation is allowed to
+      touch — e.g. exactly Display&nbsp;1 or Display&nbsp;2. The active zone is saved into the
+      profile; the Pico can never move or click outside it. Read a display's position &amp;
+      size from System&nbsp;Settings → Displays.</p>
+    <table id="zoneTable">
+      <thead><tr><th>Active</th><th>Name</th><th>X</th><th>Y</th><th>Width</th><th>Height</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <div class="row">
+      <button id="btnAddZone">+ Add zone</button>
+      <button id="btnPreviewZone">Preview active zone (drives corners)</button>
+    </div>
+  </section>
+
+  <!-- PATTERN -->
+  <section class="panel" data-panel="pattern">
+    <h2>Mouse pattern</h2>
+    <p class="hint">Randomized, human-like clicking within the active zone. Leave Targets empty
+      to click anywhere in the zone, or add sub-rectangles to concentrate clicks.</p>
+    <div class="row">
+      <div class="f chk"><input id="m_enabled" type="checkbox" checked><label>mouse enabled</label></div>
+      <div class="f"><label>button</label><select id="m_button">
+        <option>left</option><option>right</option><option>middle</option></select></div>
+      <div class="f"><label>double-click chance</label><input id="m_dbl" class="sm" type="number" step="0.01" min="0" max="1"></div>
+    </div>
+    <div class="row">
+      <div class="f"><label>clicks/session min</label><input id="m_cmin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="m_cmax" class="sm" type="number"></div>
+      <div class="f"><label>action gap ms min</label><input id="s_gmin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="s_gmax" class="sm" type="number"></div>
+    </div>
+    <div class="sep"></div>
+    <p class="mini">Human-like motion</p>
+    <div class="row">
+      <div class="f"><label>move steps min</label><input id="mv_smin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="mv_smax" class="sm" type="number"></div>
+      <div class="f"><label>duration ms min</label><input id="mv_dmin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="mv_dmax" class="sm" type="number"></div>
+      <div class="f"><label>jitter (hid)</label><input id="mv_jit" class="sm" type="number"></div>
+      <div class="f"><label>curve 0–0.4</label><input id="mv_curve" class="sm" type="number" step="0.01"></div>
+    </div>
+    <div class="row">
+      <div class="f"><label>dwell ms min</label><input id="m_dwmin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="m_dwmax" class="sm" type="number"></div>
+      <div class="f"><label>hold ms min</label><input id="m_hmin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="m_hmax" class="sm" type="number"></div>
+    </div>
+    <div class="sep"></div>
+    <p class="mini">Targets (optional sub-rectangles, in points)</p>
+    <table id="targetTable">
+      <thead><tr><th>X</th><th>Y</th><th>Width</th><th>Height</th><th></th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <button id="btnAddTarget">+ Add target</button>
+  </section>
+
+  <!-- TYPING -->
+  <section class="panel" data-panel="typing">
+    <h2>Typing</h2>
+    <p class="hint">When enabled, some actions type a random phrase instead of clicking.
+      You can also toggle the keyboard live from the status bar during a session.</p>
+    <div class="row">
+      <div class="f chk"><input id="k_enabled" type="checkbox"><label>keyboard enabled</label></div>
+      <div class="f"><label>type chance 0–1</label><input id="k_chance" class="sm" type="number" step="0.05" min="0" max="1"></div>
+      <div class="f"><label>char delay ms min</label><input id="k_dmin" class="sm" type="number"></div>
+      <div class="f"><label>max</label><input id="k_dmax" class="sm" type="number"></div>
+    </div>
+    <div class="f"><label>phrases (one per line, picked at random)</label>
+      <textarea id="k_phrases" placeholder="hello&#10;test@example.com"></textarea></div>
+  </section>
+
+  <!-- SESSION -->
+  <section class="panel" data-panel="session">
+    <h2>Session</h2>
+    <p class="hint">How the session runs. <b>Autorun</b> = start automatically on power-up,
+      no Mac needed. <b>Loop</b> = after finishing the click count, reshuffle and keep going.</p>
+    <div class="row">
+      <div class="f chk"><input id="s_autorun" type="checkbox"><label>autorun on boot</label></div>
+      <div class="f chk"><input id="s_loop" type="checkbox" checked><label>loop sessions</label></div>
+      <div class="f"><label>max actions (0=∞)</label><input id="s_max" class="sm" type="number"></div>
+      <div class="f"><label>start delay ms</label><input id="s_delay" type="number"></div>
+    </div>
+  </section>
+
+  <!-- PROFILE -->
+  <section class="panel" data-panel="profile">
+    <h2>Profile</h2>
+    <p class="hint">Build the profile from all tabs, then push it to the device. In stealth
+      mode the Pico saves it to its own flash and runs it on every plug.</p>
+    <div class="row">
+      <div class="f"><label>profile name</label><input id="p_name" value="default"></div>
+      <div class="f"><label>load saved</label><select id="p_local"><option value="">—</option></select></div>
+      <button id="btnLoadLocal">Load</button>
+      <button id="btnSaveLocal">Save locally</button>
+      <button id="btnLoadDevice">Load from device</button>
+    </div>
+    <div class="row">
+      <button id="btnPush" class="primary">Push to device</button>
+      <button id="btnPushStart" class="good">Push &amp; Start</button>
+    </div>
+    <div class="sep"></div>
+    <p class="mini">Preview of the profile JSON that will be sent (zones/targets already in HID units):</p>
+    <pre id="preview" style="background:#0a0e17;border:1px solid var(--edge);border-radius:10px;padding:10px;overflow:auto;max-height:260px;font:12px/1.4 ui-monospace,Menlo,monospace"></pre>
+  </section>
+
+  <div class="toolbar">
+    <span class="mini">log</span><button id="btnClearLog">clear</button>
+    <label class="mini"><input type="checkbox" id="autoStatus" checked> auto-refresh status</label>
+  </div>
+  <div id="log"></div>
+</main>
+
+<script>
+const $ = s => document.querySelector(s);
+const el = id => document.getElementById(id);
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+let CONF = {screen:{offset_x:0,offset_y:0,width:1920,height:1080}, hid_max:32767};
+let ZONES = [], ACTIVE = 0, TARGETS = [];
+
+function logln(msg){const l=el('log');l.textContent+=msg+"\n";l.scrollTop=l.scrollHeight;}
+async function api(path, body){
+  try{
+    const r = await fetch(path, {method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify(body||{})});
+    const j = await r.json();
+    if(!j.ok){ logln("✗ "+path+": "+(j.error||'error')); return null; }
+    return j.result;
+  }catch(e){ logln("✗ "+path+": "+e); return null; }
+}
+async function apiGet(path){ const r=await fetch(path); return r.json(); }
+
+// ---- points <-> HID ----
+function toHid(px,py){
+  const s=CONF.screen, M=CONF.hid_max;
+  const hx=Math.round((px-s.offset_x)/Math.max(s.width-1,1)*M);
+  const hy=Math.round((py-s.offset_y)/Math.max(s.height-1,1)*M);
+  return [clamp(hx,0,M), clamp(hy,0,M)];
+}
+function zoneToHid(z){
+  const [x0,y0]=toHid(z.x, z.y);
+  const [x1,y1]=toHid(z.x+z.w-1, z.y+z.h-1);
+  return {x0:Math.min(x0,x1), y0:Math.min(y0,y1), x1:Math.max(x0,x1), y1:Math.max(y0,y1)};
+}
+
+// ---- tabs ----
+document.querySelectorAll('.tab').forEach(t=>t.onclick=()=>{
+  document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(x=>x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelector('.panel[data-panel="'+t.dataset.tab+'"]').classList.add('active');
+  if(t.dataset.tab==='profile') renderPreview();
+});
+
+// ---- status ----
+function setDot(cls,txt){ el('dot').className='dot '+cls; el('state').textContent=txt; }
+async function refreshStatus(){
+  const s = await api('/api/status');
+  if(!s){ setDot('off','offline'); return; }
+  setDot(s.running?'run':'idle', s.running?'running':'idle');
+  el('ip').textContent=s.ip; el('actions').textContent=s.actions;
+  el('target').textContent=s.session_target; el('profname').textContent=s.profile;
+  el('kbstate').textContent=s.keyboard_on?'on':'off';
+}
+el('btnRefresh').onclick=refreshStatus;
+el('btnStart').onclick=async()=>{ await api('/api/start'); refreshStatus(); };
+el('btnStop').onclick=async()=>{ await api('/api/stop'); refreshStatus(); };
+
+// ---- calibration ----
+function fillCal(){ const s=CONF.screen;
+  el('cal_ox').value=s.offset_x; el('cal_oy').value=s.offset_y;
+  el('cal_w').value=s.width; el('cal_h').value=s.height; }
+el('btnRawTL').onclick=()=>api('/api/raw',{hx:0,hy:0}).then(()=>logln('→ drove to raw (0,0)'));
+el('btnRawBR').onclick=()=>api('/api/raw',{hx:CONF.hid_max,hy:CONF.hid_max}).then(()=>logln('→ drove to raw (max,max)'));
+el('btnCompute').onclick=()=>{
+  const tx=+el('tl_x').value, ty=+el('tl_y').value, bx=+el('br_x').value, by=+el('br_y').value;
+  el('cal_ox').value=tx; el('cal_oy').value=ty;
+  el('cal_w').value=(bx-tx+1); el('cal_h').value=(by-ty+1);
+  logln('computed mapping: offset('+tx+','+ty+') size '+(bx-tx+1)+'×'+(by-ty+1));
+};
+el('btnSaveCal').onclick=async()=>{
+  const screen={offset_x:+el('cal_ox').value, offset_y:+el('cal_oy').value,
+    width:+el('cal_w').value, height:+el('cal_h').value};
+  const r=await api('/api/save_calibration',{screen});
+  if(r){ CONF.screen=r.screen; logln('✓ calibration saved: '+JSON.stringify(r.screen)); renderZones(); }
+};
+
+// ---- zones ----
+function renderZones(){
+  const tb=$('#zoneTable tbody'); tb.innerHTML='';
+  ZONES.forEach((z,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><input type="radio" name="zone" ${i===ACTIVE?'checked':''}></td>
+      <td><input value="${z.name}" data-k="name" class="sm"></td>
+      <td><input type="number" value="${z.x}" data-k="x" class="sm"></td>
+      <td><input type="number" value="${z.y}" data-k="y" class="sm"></td>
+      <td><input type="number" value="${z.w}" data-k="w" class="sm"></td>
+      <td><input type="number" value="${z.h}" data-k="h" class="sm"></td>
+      <td><button class="bad" data-del="${i}">✕</button></td>`;
+    tr.querySelector('input[type=radio]').onchange=()=>{ACTIVE=i;renderPreview();};
+    tr.querySelectorAll('input[data-k]').forEach(inp=>inp.onchange=()=>{
+      const k=inp.dataset.k; z[k]= k==='name'?inp.value:+inp.value; renderPreview();});
+    tr.querySelector('[data-del]').onclick=()=>{ZONES.splice(i,1); if(ACTIVE>=ZONES.length)ACTIVE=0; renderZones();};
+    tb.appendChild(tr);
+  });
+}
+el('btnAddZone').onclick=()=>{
+  const s=CONF.screen;
+  ZONES.push({name:'zone'+(ZONES.length+1), x:s.offset_x, y:s.offset_y, w:s.width, h:s.height});
+  renderZones();
+};
+el('btnPreviewZone').onclick=async()=>{
+  const z=ZONES[ACTIVE]; if(!z){logln('no active zone');return;}
+  const corners=[[z.x,z.y],[z.x+z.w-1,z.y],[z.x+z.w-1,z.y+z.h-1],[z.x,z.y+z.h-1],[z.x+z.w/2,z.y+z.h/2]];
+  logln('previewing zone "'+z.name+'" corners…');
+  for(const [px,py] of corners){ await api('/api/move_point',{x:px,y:py}); await new Promise(r=>setTimeout(r,700)); }
+  logln('preview done');
+};
+
+// ---- targets ----
+function renderTargets(){
+  const tb=$('#targetTable tbody'); tb.innerHTML='';
+  TARGETS.forEach((t,i)=>{
+    const tr=document.createElement('tr');
+    tr.innerHTML=`<td><input type="number" value="${t.x}" data-k="x" class="sm"></td>
+      <td><input type="number" value="${t.y}" data-k="y" class="sm"></td>
+      <td><input type="number" value="${t.w}" data-k="w" class="sm"></td>
+      <td><input type="number" value="${t.h}" data-k="h" class="sm"></td>
+      <td><button class="bad" data-del="${i}">✕</button></td>`;
+    tr.querySelectorAll('input[data-k]').forEach(inp=>inp.onchange=()=>{t[inp.dataset.k]=+inp.value;});
+    tr.querySelector('[data-del]').onclick=()=>{TARGETS.splice(i,1);renderTargets();};
+    tb.appendChild(tr);
+  });
+}
+el('btnAddTarget').onclick=()=>{const s=CONF.screen;
+  TARGETS.push({x:s.offset_x,y:s.offset_y,w:Math.round(s.width/3),h:Math.round(s.height/3)});renderTargets();};
+
+// ---- build profile ----
+function buildProfile(){
+  const z=ZONES[ACTIVE];
+  const zone = z ? zoneToHid(z) : {x0:0,y0:0,x1:CONF.hid_max,y1:CONF.hid_max};
+  const targets = TARGETS.map(zoneToHid);
+  const phrases = el('k_phrases').value.split('\n').map(s=>s.trim()).filter(Boolean);
+  return {
+    name: el('p_name').value || 'default',
+    autorun: el('s_autorun').checked,
+    keyboard_enabled: el('k_enabled').checked,
+    zone,
+    mouse:{
+      enabled: el('m_enabled').checked,
+      button: el('m_button').value,
+      double_click_chance: +el('m_dbl').value,
+      clicks_per_session:{min:+el('m_cmin').value,max:+el('m_cmax').value},
+      targets,
+      move:{steps:{min:+el('mv_smin').value,max:+el('mv_smax').value},
+            duration_ms:{min:+el('mv_dmin').value,max:+el('mv_dmax').value},
+            jitter:+el('mv_jit').value, curve:+el('mv_curve').value},
+      dwell_ms:{min:+el('m_dwmin').value,max:+el('m_dwmax').value},
+      hold_ms:{min:+el('m_hmin').value,max:+el('m_hmax').value},
+    },
+    keyboard:{enabled: el('k_enabled').checked, chance:+el('k_chance').value,
+      phrases, type_delay_ms:{min:+el('k_dmin').value,max:+el('k_dmax').value}},
+    session:{loop: el('s_loop').checked, max_actions:+el('s_max').value,
+      start_delay_ms:+el('s_delay').value,
+      action_gap_ms:{min:+el('s_gmin').value,max:+el('s_gmax').value}},
+  };
+}
+function renderPreview(){ el('preview').textContent=JSON.stringify(buildProfile(),null,2); }
+
+el('btnPush').onclick=async()=>{const p=buildProfile();
+  const r=await api('/api/push_profile',{profile:p,start:false});
+  if(r){logln('✓ pushed "'+p.name+'" — saved:'+r.saved+(r.note?' ('+r.note+')':''));refreshStatus();}};
+el('btnPushStart').onclick=async()=>{const p=buildProfile();
+  const r=await api('/api/push_profile',{profile:p,start:true});
+  if(r){logln('✓ pushed & started "'+p.name+'"');refreshStatus();}};
+
+// ---- local + device profiles ----
+async function loadProfileInto(p){
+  el('p_name').value=p.name||'default';
+  el('s_autorun').checked=!!p.autorun; el('s_loop').checked=!!(p.session&&p.session.loop);
+  el('s_max').value=(p.session&&p.session.max_actions)||0;
+  el('s_delay').value=(p.session&&p.session.start_delay_ms)||4000;
+  const g=(p.session&&p.session.action_gap_ms)||{min:500,max:3500};
+  el('s_gmin').value=g.min; el('s_gmax').value=g.max;
+  const m=p.mouse||{};
+  el('m_enabled').checked=m.enabled!==false; el('m_button').value=m.button||'left';
+  el('m_dbl').value=m.double_click_chance||0;
+  el('m_cmin').value=(m.clicks_per_session||{}).min||20; el('m_cmax').value=(m.clicks_per_session||{}).max||60;
+  const mv=m.move||{};
+  el('mv_smin').value=(mv.steps||{}).min||18; el('mv_smax').value=(mv.steps||{}).max||55;
+  el('mv_dmin').value=(mv.duration_ms||{}).min||300; el('mv_dmax').value=(mv.duration_ms||{}).max||1300;
+  el('mv_jit').value=mv.jitter||40; el('mv_curve').value=mv.curve||0.18;
+  el('m_dwmin').value=(m.dwell_ms||{}).min||40; el('m_dwmax').value=(m.dwell_ms||{}).max||220;
+  el('m_hmin').value=(m.hold_ms||{}).min||40; el('m_hmax').value=(m.hold_ms||{}).max||110;
+  const k=p.keyboard||{};
+  el('k_enabled').checked=!!k.enabled||!!p.keyboard_enabled; el('k_chance').value=k.chance||0.2;
+  el('k_dmin').value=(k.type_delay_ms||{}).min||40; el('k_dmax').value=(k.type_delay_ms||{}).max||170;
+  el('k_phrases').value=(k.phrases||[]).join('\n');
+  renderPreview();
+  logln('loaded profile "'+(p.name||'?')+'" into the form (zones use points; set the zone tab if needed)');
+}
+el('btnSaveLocal').onclick=async()=>{const p=buildProfile();
+  const r=await api('/api/save_local',{name:p.name,profile:p});
+  if(r){logln('✓ saved locally: '+r.saved);refreshLocal();}};
+el('btnLoadLocal').onclick=async()=>{const n=el('p_local').value; if(!n)return;
+  const r=await api('/api/load_local',{name:n}); if(r)loadProfileInto(r.profile);};
+el('btnLoadDevice').onclick=async()=>{const r=await api('/api/get_profile');
+  if(r&&r.profile)loadProfileInto(r.profile);};
+async function refreshLocal(){const j=await apiGet('/api/profiles');
+  const sel=el('p_local'); sel.innerHTML='<option value="">—</option>';
+  (j.profiles||[]).forEach(n=>{const o=document.createElement('option');o.value=o.textContent=n;sel.appendChild(o);});}
+
+el('btnClearLog').onclick=()=>{el('log').textContent='';};
+
+// ---- init ----
+async function init(){
+  const j=await apiGet('/api/config'); CONF=j; fillCal();
+  ZONES=[
+    {name:'Full range', x:CONF.screen.offset_x, y:CONF.screen.offset_y, w:CONF.screen.width, h:CONF.screen.height},
+  ];
+  renderZones(); renderTargets(); await refreshLocal();
+  // sensible defaults
+  loadProfileInto({name:'default', session:{loop:true,start_delay_ms:4000,action_gap_ms:{min:500,max:3500},max_actions:0},
+    mouse:{enabled:true,button:'left',double_click_chance:0.08,clicks_per_session:{min:20,max:60},
+      move:{steps:{min:18,max:55},duration_ms:{min:300,max:1300},jitter:40,curve:0.18},
+      dwell_ms:{min:40,max:220},hold_ms:{min:40,max:110}},
+    keyboard:{enabled:false,chance:0.2,phrases:['hello'],type_delay_ms:{min:40,max:170}}});
+  refreshStatus();
+  setInterval(()=>{ if(el('autoStatus').checked) refreshStatus(); }, 2500);
+  logln('ready. configure tabs, then Profile → Push to device.');
+}
+init();
+</script>
+</body>
+</html>

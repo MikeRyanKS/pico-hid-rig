@@ -1,0 +1,32 @@
+# Copy this file to the root of the CIRCUITPY drive and fill in your values.
+#
+# NOTE: these deliberately do NOT use CIRCUITPY_WIFI_SSID / CIRCUITPY_WIFI_PASSWORD,
+# so CircuitPython's built-in web editor stays OFF (it would open port 80 on your network).
+
+# 2.4 GHz network only - the Pico WH cannot join 5 GHz.
+PICO_WIFI_SSID = "YourWiFiName"
+PICO_WIFI_PASSWORD = "YourWiFiPassword"
+
+# Shared secret. Generate one on the Mac mini with:
+#   python3 -c "import secrets; print(secrets.token_urlsafe(24))"
+PICO_TOKEN = "paste-a-long-random-token-here"
+
+PICO_HOSTNAME = "pico-hid"
+PICO_PORT = 8765
+
+# Stealth: hide the CIRCUITPY drive + serial from the TARGET Mac (looks like a
+# plain keyboard/mouse) and let the Pico save its own profile. Also toggled by a
+# hardware jumper on GP22->GND. Set "true" for deployment, "false" to edit files.
+PICO_STEALTH = "false"
+
+# ---- Optional disguise ----
+# Rename the CIRCUITPY drive (Finder/disk list). <=11 chars, stored uppercase.
+# Ignored in stealth mode (the drive is hidden entirely there).
+# PICO_DRIVE_LABEL = "MOUSE2"
+#
+# Make the USB device read like an ordinary mouse in the host's USB list.
+# PICO_USB_MANUFACTURER = "Logitech"
+# PICO_USB_PRODUCT = "USB Optical Mouse"
+# Advanced: spoof VID/PID (hex). Can re-trigger macOS Keyboard Setup Assistant.
+# PICO_USB_VID = "0x046D"
+# PICO_USB_PID = "0xC077"

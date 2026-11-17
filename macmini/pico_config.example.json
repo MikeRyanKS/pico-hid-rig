@@ -1,0 +1,11 @@
+{
+  "host": "pico-hid.local",
+  "port": 8765,
+  "token": "paste-the-same-token-as-settings.toml",
+  "screen": {
+    "width": 1536,
+    "height": 960,
+    "offset_x": 0,
+    "offset_y": 0
+  }
+}
