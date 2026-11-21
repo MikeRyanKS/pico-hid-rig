@@ -38,6 +38,7 @@ PASSWORD = os.getenv("PICO_WIFI_PASSWORD")
 TOKEN = os.getenv("PICO_TOKEN")
 HOSTNAME = os.getenv("PICO_HOSTNAME") or "pico-hid"
 PORT = int(os.getenv("PICO_PORT") or 8765)
+WIFI_OFF = (os.getenv("PICO_WIFI_OFF") or "").strip().lower() in ("1", "true", "yes", "on")
 
 HID_MAX = 32767
 PROFILE_PATH = "/profile.json"
@@ -53,6 +54,19 @@ def blink(times=3, period=0.1):
         time.sleep(period)
         led.value = False
         time.sleep(period)
+
+
+def deployed():
+    """True when the GP22 jumper is installed (stealth/deploy mode). Autorun only
+    fires when deployed, so the device never auto-clicks a config host."""
+    try:
+        pin = digitalio.DigitalInOut(board.GP22)
+        pin.switch_to_input(pull=digitalio.Pull.UP)
+        val = not pin.value   # jumper GP22->GND pulls it low
+        pin.deinit()
+        return val
+    except Exception:
+        return False
 
 
 # ---------------------------------------------------------------- HID devices
@@ -496,7 +510,7 @@ def service_conn(conn, cstate, buf):
 
 
 def main():
-    if not TOKEN:
+    if not WIFI_OFF and not TOKEN:
         print("PICO_TOKEN missing - refusing to start")
         while True:
             blink(2, 0.3)
@@ -506,30 +520,33 @@ def main():
     print("profile:", auto["profile"].get("name"),
           "autorun:", auto["profile"].get("autorun"))
 
-    connect_wifi()
-
     server = None
-    try:
-        import mdns
-        m = mdns.Server(wifi.radio)
-        m.hostname = HOSTNAME
-        m.advertise_service(service_type="_pico-hid", protocol="_tcp", port=PORT)
-    except Exception as e:  # noqa: BLE001
-        print("mDNS unavailable:", e)
-
-    if wifi.radio.connected:
-        pool = socketpool.SocketPool(wifi.radio)
-        server = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
-        server.setsockopt(pool.SOL_SOCKET, pool.SO_REUSEADDR, 1)
-        server.bind(("0.0.0.0", PORT))
-        server.listen(1)
-        server.settimeout(0)   # non-blocking accept; automation runs every loop
-        print("Listening on port", PORT)
+    if WIFI_OFF:
+        print("WiFi disabled (PICO_WIFI_OFF) - pure autonomous mode")
+    else:
+        connect_wifi()
+        try:
+            import mdns
+            m = mdns.Server(wifi.radio)
+            m.hostname = HOSTNAME
+            m.advertise_service(service_type="_pico-hid", protocol="_tcp", port=PORT)
+        except Exception as e:  # noqa: BLE001
+            print("mDNS unavailable:", e)
+        if wifi.radio.connected:
+            pool = socketpool.SocketPool(wifi.radio)
+            server = pool.socket(pool.AF_INET, pool.SOCK_STREAM)
+            server.setsockopt(pool.SOL_SOCKET, pool.SO_REUSEADDR, 1)
+            server.bind(("0.0.0.0", PORT))
+            server.listen(1)
+            server.settimeout(0)   # non-blocking accept; automation runs every loop
+            print("Listening on port", PORT)
 
     buf = bytearray(2048)
-    if auto["profile"].get("autorun"):
+    if auto["profile"].get("autorun") and deployed():
         start_session(auto["profile"])
-        print("autorun: session started, target =", auto["session_target"])
+        print("autorun: session started (jumper in), target =", auto["session_target"])
+    elif auto["profile"].get("autorun"):
+        print("autorun armed but jumper OUT - idle (config mode)")
 
     last_wifi_try = time.monotonic()
     conn = None
@@ -571,7 +588,7 @@ def main():
         # 4) Idle LED pulse + quiet WiFi recovery when not running.
         if not auto["running"]:
             led.value = (time.monotonic() % 2) < 1  # slow pulse
-            if server is None and time.monotonic() - last_wifi_try > 15:
+            if not WIFI_OFF and server is None and time.monotonic() - last_wifi_try > 15:
                 last_wifi_try = time.monotonic()
                 if connect_wifi(timeout=8):
                     return supervisor.reload()  # rebuild sockets cleanly

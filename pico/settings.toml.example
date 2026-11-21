@@ -30,3 +30,7 @@ PICO_STEALTH = "false"
 # Advanced: spoof VID/PID (hex). Can re-trigger macOS Keyboard Setup Assistant.
 # PICO_USB_VID = "0x046D"
 # PICO_USB_PID = "0xC077"
+
+# Skip WiFi entirely (configure over USB instead). Faster boot, no network
+# footprint. Set "false" only for over-the-air control on a reliable network.
+PICO_WIFI_OFF = "true"
