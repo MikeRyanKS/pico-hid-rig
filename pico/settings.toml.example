@@ -34,3 +34,7 @@ PICO_STEALTH = "false"
 # Skip WiFi entirely (configure over USB instead). Faster boot, no network
 # footprint. Set "false" only for over-the-air control on a reliable network.
 PICO_WIFI_OFF = "true"
+
+# Fire autorun without the GP22 jumper (for jumper-free "disguised mouse" deploys).
+# Pair with a generous start_delay_ms and edit the drive over USB to reconfigure.
+PICO_AUTORUN_ALWAYS = "true"

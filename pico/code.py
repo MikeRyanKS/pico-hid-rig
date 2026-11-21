@@ -39,6 +39,7 @@ TOKEN = os.getenv("PICO_TOKEN")
 HOSTNAME = os.getenv("PICO_HOSTNAME") or "pico-hid"
 PORT = int(os.getenv("PICO_PORT") or 8765)
 WIFI_OFF = (os.getenv("PICO_WIFI_OFF") or "").strip().lower() in ("1", "true", "yes", "on")
+AUTORUN_ALWAYS = (os.getenv("PICO_AUTORUN_ALWAYS") or "").strip().lower() in ("1", "true", "yes", "on")
 
 HID_MAX = 32767
 PROFILE_PATH = "/profile.json"
@@ -542,11 +543,11 @@ def main():
             print("Listening on port", PORT)
 
     buf = bytearray(2048)
-    if auto["profile"].get("autorun") and deployed():
+    if auto["profile"].get("autorun") and (AUTORUN_ALWAYS or deployed()):
         start_session(auto["profile"])
-        print("autorun: session started (jumper in), target =", auto["session_target"])
+        print("autorun: session started, target =", auto["session_target"])
     elif auto["profile"].get("autorun"):
-        print("autorun armed but jumper OUT - idle (config mode)")
+        print("autorun armed but gated off (no jumper / AUTORUN_ALWAYS off) - idle")
 
     last_wifi_try = time.monotonic()
     conn = None
